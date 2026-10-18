@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0806">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sleep Sounds">
+<meta name="format-detection" content="telephone=no">
+<title>Sleep Sounds</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23140d08'/%3E%3Cpath d='M62 22a30 30 0 1 0 16 46A26 26 0 0 1 62 22z' fill='%23c98a4b'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0b0806; --panel:#16100b; --panel2:#1f160f; --line:#2e2117;
+    --text:#b98d62; --dim:#7a5c40; --accent:#c4803f; --accent-dim:#6b4422; --on:#3a2414;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:20px;line-height:1.35;-webkit-text-size-adjust:100%}
+  body{min-height:100vh;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 20px)}
+  main{max-width:560px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:4px 0 14px;text-align:center;color:var(--text);letter-spacing:.02em}
+  h2{font-size:1.05rem;font-weight:600;color:var(--dim);margin:22px 4px 10px;text-transform:uppercase;letter-spacing:.08em}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  button{font:inherit;color:var(--text);background:var(--panel);border:2px solid var(--line);
+    border-radius:18px;min-height:72px;padding:10px;cursor:pointer;touch-action:manipulation;
+    transition:background .2s,border-color .2s,color .2s}
+  button:active{transform:scale(.98)}
+  button:focus-visible{outline:3px solid var(--accent-dim);outline-offset:2px}
+  .snd{font-size:1.25rem;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .snd small{font-size:.8rem;font-weight:400;color:var(--dim)}
+  .sel{background:var(--on);border-color:var(--accent);color:#d9a066}
+  .sel small{color:var(--text)}
+  #play{width:100%;min-height:110px;font-size:1.9rem;font-weight:700;border-radius:26px;
+    background:var(--panel2);border-color:var(--accent-dim);display:flex;align-items:center;justify-content:center;gap:16px}
+  #play.playing{background:var(--on);border-color:var(--accent)}
+  #play svg{width:44px;height:44px;fill:currentColor}
+  .tm{min-height:64px;font-size:1.15rem;font-weight:600}
+  .row{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:14px 16px 18px;margin-top:12px}
+  .row label{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:600;margin-bottom:10px}
+  .row label span:last-child{color:var(--dim);font-weight:400}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:var(--line)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:38px;height:38px;border-radius:50%;
+    background:var(--accent);border:3px solid var(--bg);margin-top:-13px}
+  input[type=range]::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+  #status{text-align:center;color:var(--dim);font-size:1.05rem;min-height:1.5em;margin:12px 0 0}
+  footer{margin-top:26px;color:var(--dim);font-size:.95rem;border-top:1px solid var(--line);padding-top:14px}
+  footer p{margin:0 0 10px}
+  @media (max-width:360px){html,body{font-size:18px}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>🌙 Sleep Sounds</h1>
+
+  <button id="play" aria-pressed="false" aria-label="Play">
+    <svg id="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    <span id="playTxt">Play</span>
+  </button>
+  <div id="status" role="status" aria-live="polite">Tap Play to start</div>
+
+  <h2>Sound</h2>
+  <div class="grid" id="sounds">
+    <button class="snd" data-s="rain">Rain<small>soft rainfall</small></button>
+    <button class="snd" data-s="ocean">Ocean<small>slow waves</small></button>
+    <button class="snd" data-s="fan">Fan<small>steady hum</small></button>
+    <button class="snd" data-s="brown">Brown<small>deep rumble</small></button>
+    <button class="snd" data-s="pink">Pink<small>balanced hush</small></button>
+    <button class="snd" data-s="white">White<small>bright hiss</small></button>
+  </div>
+
+  <div class="row">
+    <label for="vol"><span>Volume</span><span id="volV">30%</span></label>
+    <input id="vol" type="range" min="0" max="100" step="1" value="30" aria-label="Volume">
+  </div>
+  <div class="row">
+    <label for="tone"><span>Tone</span><span id="toneV">Natural</span></label>
+    <input id="tone" type="range" min="0" max="100" step="1" value="100" aria-label="Tone, lower is warmer">
+  </div>
+
+  <h2>Sleep Timer</h2>
+  <div class="grid3" id="timers">
+    <button class="tm" data-m="0">Off</button>
+    <button class="tm" data-m="15">15 min</button>
+    <button class="tm" data-m="30">30 min</button>
+    <button class="tm" data-m="60">1 hour</button>
+    <button class="tm" data-m="90">90 min</button>
+    <button class="tm" data-m="480">8 hours</button>
+  </div>
+
+  <footer>
+    <p>💡 Keep the volume low and place your device across the room, not next to your pillow.</p>
+    <p>📱 iPhone: if you hear nothing, check the silent switch on the side (it can mute web sounds) and turn up the phone volume. Keep this page open; you can let the screen dim. For best results tap Share → “Add to Home Screen”.</p>
+    <p>The sleep timer fades out gently over the last minute.</p>
+  </footer>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  var LS = 'sleepSounds.v1';
+  var NAMES = {white:'White noise',pink:'Pink noise',brown:'Brown noise',rain:'Rain',ocean:'Ocean',fan:'Fan'};
+  var state = { sound:'rain', vol:30, tone:100, timer:0 };
+  try { var saved = JSON.parse(localStorage.getItem(LS) || '{}');
+    if (saved && typeof saved === 'object') {
+      if (NAMES[saved.sound]) state.sound = saved.sound;
+      if (typeof saved.vol === 'number') state.vol = Math.max(0, Math.min(100, saved.vol));
+      if (typeof saved.tone === 'number') state.tone = Math.max(0, Math.min(100, saved.tone));
+    }
+  } catch(e) {}
+  function save(){ try { localStorage.setItem(LS, JSON.stringify({sound:state.sound, vol:state.vol, tone:state.tone})); } catch(e){} }
+
+  var $ = function(id){ return document.getElementById(id); };
+  var playBtn=$('play'), playTxt=$('playTxt'), ico=$('ico'), statusEl=$('status');
+  var volEl=$('vol'), toneEl=$('tone'), volV=$('volV'), toneV=$('toneV');
+
+  var ctx=null, master=null, timerGain=null, toneFilter=null, current=null;
+  var playing=false, buffers={}, timerEnd=0, timerTick=null;
+
+  // ---------- audio graph: voice -> tone (low-pass) -> volume -> sleep-timer fade -> out ----------
+  function ensureCtx(){
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { statusEl.textContent = 'Sorry, this browser cannot play generated sound.'; return null; }
+    // iOS 17+ Safari: "playback" session lets audio play even with the silent switch on (where supported)
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+    ctx = new AC();
+    toneFilter = ctx.createBiquadFilter(); toneFilter.type='lowpass'; toneFilter.Q.value=0.5;
+    toneFilter.frequency.value = toneHz(state.tone);
+    master = ctx.createGain(); master.gain.value = 0;
+    timerGain = ctx.createGain(); timerGain.gain.value = 1;
+    toneFilter.connect(master); master.connect(timerGain); timerGain.connect(ctx.destination);
+    // iOS unlock: play a tiny silent buffer inside the tap gesture
+    try { var b=ctx.createBuffer(1,1,ctx.sampleRate), s=ctx.createBufferSource(); s.buffer=b; s.connect(ctx.destination); s.start(0); } catch(e){}
+    return ctx;
+  }
+  function volGain(v){ return Math.pow(v/100, 1.5); }          // perceptual curve
+  function toneHz(t){ return 250 * Math.pow(18000/250, t/100); }  // 250 Hz (very warm) .. 18 kHz (natural)
+  function hold(param, t){
+    if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(t);
+    else { param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); }
+  }
+  function ramp(param, value, secs){ var now=ctx.currentTime; hold(param, now); param.setTargetAtTime(value, now, Math.max(0.01, secs/4)); }
+
+  // ---------- noise generators (24 s buffers, crossfaded loop point => no seam) ----------
+  var LEN_S = 24, XF_S = 1.5;
+  function makeLoop(gen){
+    var sr = ctx.sampleRate, n = Math.floor(LEN_S*sr), xf = Math.floor(XF_S*sr);
+    var buf = ctx.createBuffer(2, n, sr);
+    for (var ch=0; ch<2; ch++){
+      var raw = new Float32Array(n + xf);
+      gen(raw, sr, ch);
+      var out = buf.getChannelData(ch), i;
+      for (i=0;i<n;i++) out[i]=raw[i];
+      // equal-power crossfade of the extra tail into the head: end of buffer flows into start
+      for (var j=0;j<xf;j++){ var t=j/xf; out[j] = raw[j]*Math.sin(t*Math.PI/2) + raw[n+j]*Math.cos(t*Math.PI/2); }
+      var peak=0; for (i=0;i<n;i++){ var v=Math.abs(out[i]); if(v>peak) peak=v; }
+      var k = peak>0 ? 0.9/peak : 1; for (i=0;i<n;i++) out[i]*=k;
+    }
+    return buf;
+  }
+  function white(a){ for (var i=0;i<a.length;i++) a[i]=Math.random()*2-1; }
+  function pink(a){ // Paul Kellet's refined pink filter
+    var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (var i=0;i<a.length;i++){ var w=Math.random()*2-1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759; b2=0.96900*b2+w*0.1538520;
+      b3=0.86650*b3+w*0.3104856; b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      a[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926; }
+  }
+  function brown(a){ // leaky integrator
+    var last=0; for (var i=0;i<a.length;i++){ var w=Math.random()*2-1; last=(last+0.02*w)/1.02; a[i]=last*3.5; }
+  }
+  function onePoleLP(a, sr, fc){ var x=Math.exp(-2*Math.PI*fc/sr), y=0; for (var i=0;i<a.length;i++){ y=(1-x)*a[i]+x*y; a[i]=y; } }
+  function onePoleHP(a, sr, fc){ var x=Math.exp(-2*Math.PI*fc/sr), y=0, px=0; for (var i=0;i<a.length;i++){ var v=a[i]; y=x*(y+v-px); px=v; a[i]=y; } }
+
+  var GENS = {
+    white: function(a){ white(a); },
+    pink:  function(a){ pink(a); },
+    brown: function(a){ brown(a); },
+    rain: function(a, sr){
+      pink(a); onePoleHP(a, sr, 400); onePoleLP(a, sr, 7000);
+      for (var i=0;i<a.length;i++) a[i]*=0.55;
+      // gentle droplet texture: many tiny decaying filtered-noise ticks of random size/timing
+      var drops = Math.floor(a.length/sr*55);
+      for (var d=0; d<drops; d++){
+        var pos = Math.floor(Math.random()*(a.length-2000));
+        var amp = Math.pow(Math.random(),3)*0.35 + 0.02;
+        var dec = 0.0015 + Math.random()*0.006, len = Math.floor(dec*sr*5);
+        var lp=0, c=0.3+Math.random()*0.5;
+        for (var k=0;k<len && pos+k<a.length;k++){ lp = lp + c*((Math.random()*2-1)-lp); a[pos+k] += lp*amp*Math.exp(-k/(dec*sr)); }
+      }
+    },
+    ocean: function(a, sr){
+      var tmp = new Float32Array(a.length); pink(a); brown(tmp);
+      for (var i=0;i<a.length;i++) a[i]=a[i]*0.45+tmp[i]*0.8;
+      onePoleLP(a, sr, 2500);
+    },
+    fan: function(a, sr){
+      var tmp = new Float32Array(a.length); brown(a); pink(tmp);
+      for (var i=0;i<a.length;i++) a[i]=a[i]*0.8+tmp[i]*0.35;
+      onePoleLP(a, sr, 900); onePoleLP(a, sr, 1400);
+    }
+  };
+  function getBuffer(name){ if (!buffers[name]) buffers[name]=makeLoop(GENS[name]); return buffers[name]; }
+
+  function buildVoice(name){
+    var extras=[], src=ctx.createBufferSource(); src.buffer=getBuffer(name); src.loop=true;
+    var vg = ctx.createGain(); vg.gain.value=0;
+    var level = {white:0.35, pink:0.6, brown:0.85, rain:0.7, ocean:0.85, fan:0.9}[name];
+    var t = ctx.currentTime;
+    if (name==='ocean'){
+      // slow swell, ~10 s cycle (amplitude + brightness), with slow drift so waves vary (≈8–12 s)
+      var swell = ctx.createGain(); swell.gain.value = 0.55;
+      var lfo = ctx.createOscillator(); lfo.frequency.value = 0.1;
+      var lfoAmt = ctx.createGain(); lfoAmt.gain.value = 0.42;
+      var drift = ctx.createOscillator(); drift.frequency.value = 0.023;
+      var driftAmt = ctx.createGain(); driftAmt.gain.value = 0.017;
+      drift.connect(driftAmt); driftAmt.connect(lfo.frequency);
+      lfo.connect(lfoAmt); lfoAmt.connect(swell.gain);
+      var bright = ctx.createBiquadFilter(); bright.type='lowpass'; bright.frequency.value=900; bright.Q.value=0.3;
+      var lfoF = ctx.createGain(); lfoF.gain.value = 600; lfo.connect(lfoF); lfoF.connect(bright.frequency);
+      src.connect(bright); bright.connect(swell); swell.connect(vg);
+      lfo.start(t); drift.start(t); extras.push(lfo, drift);
+    } else if (name==='fan'){
+      src.connect(vg);
+      // slight motor hum: 60 Hz + 120 Hz harmonic with a tiny wobble
+      var hum = ctx.createOscillator(); hum.frequency.value=60;
+      var hum2 = ctx.createOscillator(); hum2.frequency.value=120;
+      var hg = ctx.createGain(); hg.gain.value=0.035; var hg2=ctx.createGain(); hg2.gain.value=0.012;
+      var wob = ctx.createOscillator(); wob.frequency.value=0.3; var wobA=ctx.createGain(); wobA.gain.value=0.008;
+      wob.connect(wobA); wobA.connect(hg.gain);
+      hum.connect(hg); hum2.connect(hg2); hg.connect(vg); hg2.connect(vg);
+      hum.start(t); hum2.start(t); wob.start(t); extras.push(hum, hum2, wob);
+    } else {
+      src.connect(vg);
+    }
+    vg.connect(toneFilter);
+    src.start(t, Math.random()*src.buffer.duration); // random start point
+    vg.gain.setValueAtTime(0, t); vg.gain.setTargetAtTime(level, t, 0.4);
+    return { src:src, gain:vg, extras:extras };
+  }
+  function stopVoice(v, secs){
+    if (!v) return; var t=ctx.currentTime;
+    hold(v.gain.gain, t); v.gain.gain.setTargetAtTime(0, t, secs/5);
+    var end = t + secs + 0.1;
+    try { v.src.stop(end); } catch(e){}
+    v.extras.forEach(function(n){ try{ n.stop(end); }catch(e){} });
+    setTimeout(function(){ try{ v.gain.disconnect(); }catch(e){} }, (secs+0.5)*1000);
+  }
+
+  // ---------- UI ----------
+  function setStatus(){
+    if (!playing){ statusEl.textContent = 'Paused · tap Play to start'; return; }
+    var s = 'Playing ' + NAMES[state.sound];
+    if (timerEnd){ var m=Math.ceil(Math.max(0, timerEnd-Date.now())/60000);
+      s += ' · stops in ' + (m>=60 ? Math.floor(m/60)+' h'+(m%60? ' '+m%60+' min':'') : m+' min'); }
+    statusEl.textContent = s;
+  }
+  function render(){
+    playBtn.classList.toggle('playing', playing);
+    playBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    playTxt.textContent = playing ? 'Pause' : 'Play';
+    ico.innerHTML = playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    document.querySelectorAll('#sounds button').forEach(function(b){
+      var on=b.dataset.s===state.sound; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',on?'true':'false'); });
+    document.querySelectorAll('#timers button').forEach(function(b){
+      var on=Number(b.dataset.m)===state.timer; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',on?'true':'false'); });
+    volEl.value=state.vol; volV.textContent=state.vol+'%';
+    toneEl.value=state.tone; toneV.textContent = state.tone>=95 ? 'Natural' : (state.tone<35 ? 'Very warm' : 'Warmer');
+    setStatus();
+  }
+
+  function play(){
+    if (!ensureCtx()) return;
+    if (ctx.state !== 'running') ctx.resume();
+    if (!current) current = buildVoice(state.sound);
+    ramp(master.gain, volGain(state.vol), 1.5);
+    playing = true; startTimer(state.timer); render(); mediaSession(); wake();
+  }
+  function pause(fadeSecs){
+    if (!ctx) return; playing=false; fadeSecs = fadeSecs || 0.8;
+    var v=current; current=null; stopVoice(v, fadeSecs);
+    ramp(master.gain, 0, fadeSecs);
+    stopTimer(); render();
+    if ('mediaSession' in navigator) try{ navigator.mediaSession.playbackState='paused'; }catch(e){}
+  }
+  function selectSound(name){
+    if (name===state.sound && current) return;
+    state.sound=name; save();
+    if (playing && ctx){ var old=current; current=buildVoice(name); stopVoice(old, 1.5); } // crossfade
+    render(); mediaSession();
+  }
+
+  // ---------- sleep timer (fade scheduled on the audio clock over the last 60 s) ----------
+  function stopTimer(){
+    if (timerTick){ clearInterval(timerTick); timerTick=null; }
+    timerEnd=0;
+    if (ctx){ var t=ctx.currentTime; hold(timerGain.gain, t); timerGain.gain.setTargetAtTime(1, t, 0.1); }
+  }
+  function startTimer(mins){
+    stopTimer();
+    if (!mins || !playing || !ctx) return;
+    var total = mins*60, fade = Math.min(60, total), t = ctx.currentTime + 0.5;
+    timerEnd = Date.now() + total*1000;
+    hold(timerGain.gain, t); timerGain.gain.setValueAtTime(1, t);
+    timerGain.gain.setValueAtTime(1, t + total - fade);
+    timerGain.gain.linearRampToValueAtTime(0.0001, t + total);
+    timerTick = setInterval(function(){
+      if (!timerEnd) return;
+      if (Date.now() >= timerEnd + 500){ pause(0.3); state.timer=0; render(); statusEl.textContent='Sleep timer finished · sweet dreams'; }
+      else setStatus();
+    }, 5000);
+  }
+
+  // ---------- lock-screen controls / keep screen awake ----------
+  function mediaSession(){
+    if (!('mediaSession' in navigator)) return;
+    try {
+      if (window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: NAMES[state.sound], artist:'Sleep Sounds' });
+      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+      navigator.mediaSession.setActionHandler('play', function(){ play(); });
+      navigator.mediaSession.setActionHandler('pause', function(){ pause(); });
+    } catch(e){}
+  }
+  var wakeLock=null;
+  function wake(){ if (playing && 'wakeLock' in navigator && !wakeLock && !document.hidden){
+    navigator.wakeLock.request('screen').then(function(w){ wakeLock=w; w.addEventListener('release', function(){ wakeLock=null; }); }).catch(function(){}); } }
+
+  // ---------- events ----------
+  playBtn.addEventListener('click', function(){ if (playing) pause(); else play(); });
+  $('sounds').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if (!b) return;
+    selectSound(b.dataset.s);
+    if (!playing) play(); // tapping a sound also starts playback (it's a user gesture)
+  });
+  $('timers').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if (!b) return;
+    state.timer = Number(b.dataset.m);
+    if (playing) startTimer(state.timer);
+    render();
+  });
+  volEl.addEventListener('input', function(){ state.vol=Number(volEl.value); volV.textContent=state.vol+'%';
+    if (ctx && playing) ramp(master.gain, volGain(state.vol), 0.25); save(); });
+  toneEl.addEventListener('input', function(){ state.tone=Number(toneEl.value); render();
+    if (ctx) ramp(toneFilter.frequency, toneHz(state.tone), 0.25); save(); });
+  // iOS can suspend/interrupt the context (calls, Siri, backgrounding): resume on return or next tap
+  function tryResume(){ if (ctx && playing && ctx.state !== 'running') { var p=ctx.resume(); if (p && p.catch) p.catch(function(){}); } }
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden){ tryResume(); wake(); } });
+  window.addEventListener('pageshow', tryResume);
+  document.addEventListener('touchend', tryResume, {passive:true});
+
+  // Home-screen icon: render a PNG via canvas (iOS ignores SVG touch icons)
+  try {
+    var c=document.createElement('canvas'); c.width=c.height=180; var g=c.getContext('2d');
+    g.fillStyle='#140d08'; g.fillRect(0,0,180,180);
+    g.fillStyle='#c98a4b'; g.beginPath(); g.arc(84,92,54,0,Math.PI*2); g.fill();
+    g.globalCompositeOperation='destination-out'; g.beginPath(); g.arc(112,72,50,0,Math.PI*2); g.fill();
+    g.globalCompositeOperation='source-over';
+    var link=document.createElement('link'); link.rel='apple-touch-icon'; link.href=c.toDataURL('image/png'); document.head.appendChild(link);
+  } catch(e){}
+
+  render();
+})();
+</script>
+</body>
+</html>
