@@ -53,6 +53,34 @@
   #status{text-align:center;color:var(--dim);font-size:1.05rem;min-height:1.5em;margin:12px 0 0}
   footer{margin-top:26px;color:var(--dim);font-size:.95rem;border-top:1px solid var(--line);padding-top:14px}
   footer p{margin:0 0 10px}
+  [hidden]{display:none!important}
+  #note{text-align:center;color:var(--text);font-size:.95rem;min-height:0;margin:6px 0 0}
+  .card{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:12px 12px 16px;margin-top:12px}
+  fieldset{border:0;padding:0;margin:0;min-width:0}
+  fieldset:disabled{opacity:.6}
+  .srow{background:var(--panel2);border:2px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px;transition:opacity .2s}
+  .srow.off .sctl,.srow.off .seg{opacity:.45}
+  .srow.live{border-color:var(--accent)}
+  .shead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:1.1rem;font-weight:600;margin-bottom:10px}
+  .sw{min-height:56px;min-width:100px;border-radius:28px;font-size:1rem;font-weight:700;padding:0 16px;color:var(--dim)}
+  .sw[aria-checked=true]{background:var(--on);border-color:var(--accent);color:#d9a066}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .seg button{min-height:56px;font-size:1rem;font-weight:600;border-radius:14px}
+  .sctl{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sctl label{display:block;min-width:0}
+  .sctl span.cap{display:block;font-size:.8rem;color:var(--dim);margin:0 2px 4px;text-transform:uppercase;letter-spacing:.06em}
+  .sctl input,.sctl select,.sctl .nowtxt{font:inherit;font-size:1.05rem;font-weight:600;color:var(--text);background:var(--panel);
+    border:2px solid var(--line);border-radius:14px;min-height:60px;width:100%;padding:0 12px;margin:0;
+    -webkit-appearance:none;appearance:none;color-scheme:dark;display:flex;align-items:center}
+  .sctl select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+    background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:30px}
+  .sctl input::-webkit-date-and-time-value{text-align:left}
+  .sctl input::-webkit-calendar-picker-indicator{display:none}
+  .sctl .nowtxt{color:#d9a066;border-style:dashed}
+  #schedGo{width:100%;min-height:92px;font-size:1.45rem;font-weight:700;border-radius:24px;background:var(--panel2);border-color:var(--accent-dim)}
+  #schedGo.on{background:var(--on);border-color:var(--accent)}
+  #schedCancel{width:100%;min-height:68px;margin-top:10px;font-size:1.15rem;font-weight:600}
+  #schedStatus{text-align:center;color:var(--text);font-size:1.02rem;margin:12px 4px 0;white-space:pre-line;min-height:1.4em}
   @media (max-width:360px){html,body{font-size:18px}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -66,6 +94,7 @@
     <span id="playTxt">Play</span>
   </button>
   <div id="status" role="status" aria-live="polite">Tap Play to start</div>
+  <div id="note" aria-live="polite"></div>
 
   <h2>Sound</h2>
   <div class="grid" id="sounds">
@@ -96,10 +125,21 @@
     <button class="tm" data-m="480">8 hours</button>
   </div>
 
+  <h2>Night Schedule</h2>
+  <div class="card" id="schedCard">
+    <fieldset id="schedRows" aria-label="Night schedule sessions"></fieldset>
+    <button id="schedGo">Start night schedule</button>
+    <button id="schedCancel" hidden>Cancel schedule</button>
+    <div id="schedStatus" role="status" aria-live="polite"></div>
+  </div>
+  <audio id="sink" playsinline webkit-playsinline preload="none"></audio>
+
   <footer>
     <p>💡 Keep the volume low and place your device across the room, not next to your pillow.</p>
     <p>📱 iPhone: if you hear nothing, check the silent switch on the side (it can mute web sounds) and turn up the phone volume. Keep this page open; you can let the screen dim. For best results tap Share → “Add to Home Screen”.</p>
     <p>The sleep timer fades out gently over the last minute.</p>
+    <p>🌙 Night schedule: up to 3 sessions a night, each fading in over about 45 seconds and out over the last minute. Times after midnight count as later tonight. Starting the sleep timer cancels the schedule, and starting the schedule turns the sleep timer off.</p>
+    <p>For the schedule to work on iPhone: leave this app open (don’t swipe it away), plug in your phone, keep the silent switch off and the volume up. You can lock the screen. Between sessions the app keeps playing silence in the background so later sessions can start on time. Honest caveat: iOS may still stop it in rare cases (a phone call, an alarm, another app playing audio, Low Power Mode, or iOS closing the app to free memory). If that happens, open the app and tap “Start night schedule” again.</p>
   </footer>
 </main>
 
@@ -123,6 +163,7 @@
   var volEl=$('vol'), toneEl=$('tone'), volV=$('volV'), toneV=$('toneV');
 
   var ctx=null, master=null, timerGain=null, toneFilter=null, current=null;
+  var schedGain=null, analyser=null, streamDest=null, sink=document.getElementById('sink');
   var playing=false, buffers={}, timerEnd=0, timerTick=null;
 
   // ---------- audio graph: voice -> tone (low-pass) -> volume -> sleep-timer fade -> out ----------
@@ -137,7 +178,11 @@
     toneFilter.frequency.value = toneHz(state.tone);
     master = ctx.createGain(); master.gain.value = 0;
     timerGain = ctx.createGain(); timerGain.gain.value = 1;
-    toneFilter.connect(master); master.connect(timerGain); timerGain.connect(ctx.destination);
+    schedGain = ctx.createGain(); schedGain.gain.value = 1;   // night-schedule envelope (1 outside the schedule)
+    analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+    toneFilter.connect(master); master.connect(timerGain); timerGain.connect(schedGain);
+    schedGain.connect(ctx.destination); schedGain.connect(analyser);
+    ctx.onstatechange = function(){ if (ctx.state === 'running') reconcile(true); };
     // iOS unlock: play a tiny silent buffer inside the tap gesture
     try { var b=ctx.createBuffer(1,1,ctx.sampleRate), s=ctx.createBufferSource(); s.buffer=b; s.connect(ctx.destination); s.start(0); } catch(e){}
     return ctx;
@@ -259,6 +304,7 @@
   // ---------- UI ----------
   function setStatus(){
     if (!playing){ statusEl.textContent = 'Paused · tap Play to start'; return; }
+    if (sched.active){ statusEl.textContent = 'Night schedule on · ' + NAMES[state.sound] + (activeSpan(Date.now()) ? '' : ' · quiet until next session'); return; }
     var s = 'Playing ' + NAMES[state.sound];
     if (timerEnd){ var m=Math.ceil(Math.max(0, timerEnd-Date.now())/60000);
       s += ' · stops in ' + (m>=60 ? Math.floor(m/60)+' h'+(m%60? ' '+m%60+' min':'') : m+' min'); }
@@ -268,7 +314,8 @@
     playBtn.classList.toggle('playing', playing);
     playBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
     playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
-    playTxt.textContent = playing ? 'Pause' : 'Play';
+    playTxt.textContent = playing ? (sched.active ? 'Stop' : 'Pause') : 'Play';
+    if (sched.active) playBtn.setAttribute('aria-label', 'Stop night schedule');
     ico.innerHTML = playing ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
     document.querySelectorAll('#sounds button').forEach(function(b){
       var on=b.dataset.s===state.sound; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',on?'true':'false'); });
@@ -276,7 +323,7 @@
       var on=Number(b.dataset.m)===state.timer; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',on?'true':'false'); });
     volEl.value=state.vol; volV.textContent=state.vol+'%';
     toneEl.value=state.tone; toneV.textContent = state.tone>=95 ? 'Natural' : (state.tone<35 ? 'Very warm' : 'Warmer');
-    setStatus();
+    setStatus(); renderSched();
   }
 
   function play(){
@@ -290,6 +337,7 @@
     if (!ctx) return; playing=false; fadeSecs = fadeSecs || 0.8;
     var v=current; current=null; stopVoice(v, fadeSecs);
     ramp(master.gain, 0, fadeSecs);
+    if (sched.active) endSchedule(fadeSecs);
     stopTimer(); render();
     if ('mediaSession' in navigator) try{ navigator.mediaSession.playbackState='paused'; }catch(e){}
   }
@@ -321,14 +369,244 @@
     }, 5000);
   }
 
+
+  // ---------- night schedule: up to 3 sessions, envelope scheduled on the AudioContext clock ----------
+  var SLS = 'sleepSounds.sched.v1', DURS = [15,30,45,60,90,120];
+  var FLOOR = 0.00001;                      // ≈ -100 dB: effective silence that keeps the media pipeline alive
+  var MAX_AHEAD = 18*3600*1000;             // a time more than 18 h away has "already passed tonight" → skipped
+  var cfg = [ {on:true, now:true,  time:'22:00', dur:60},
+              {on:true, now:false, time:'01:00', dur:60},
+              {on:true, now:false, time:'04:00', dur:60} ];
+  try { var sv = JSON.parse(localStorage.getItem(SLS) || 'null');
+    if (sv && sv.length) for (var si=0; si<3; si++){ var r=sv[si]; if (!r) continue;
+      if (typeof r.on === 'boolean') cfg[si].on = r.on;
+      if (si===0 && typeof r.now === 'boolean') cfg[si].now = r.now;
+      if (typeof r.time === 'string' && /^\d\d:\d\d$/.test(r.time)) cfg[si].time = r.time;
+      if (DURS.indexOf(r.dur) >= 0) cfg[si].dur = r.dur; }
+  } catch(e){}
+  function saveSched(){ try { localStorage.setItem(SLS, JSON.stringify(cfg)); } catch(e){} }
+
+  var sched = { active:false, spans:[], tick:null, anchorWall:0, anchorCtx:0, routed:false, lastEnd:0, msg:'' };
+
+  function atTime(baseMs, hhmm, dayOffset){
+    var p = hhmm.split(':'), d = new Date(baseMs);
+    d.setDate(d.getDate() + (dayOffset||0)); d.setHours(Number(p[0]), Number(p[1]), 0, 0);
+    return d.getTime();
+  }
+  // raw: [{start, end, label}] in wall-clock ms → merged spans with fades
+  function makeSpans(raw, nowMs){
+    raw = raw.filter(function(r){ return r.end > nowMs + 1000 && r.start - nowMs <= MAX_AHEAD; })
+             .sort(function(a,b){ return a.start - b.start; });
+    var out = [];
+    raw.forEach(function(r){
+      var last = out[out.length-1];
+      if (last && r.start <= last.end){ last.end = Math.max(last.end, r.end); last.labels.push(r.label); last.labels.sort(); return; } // overlap → one long session
+      out.push({ start:r.start, end:r.end, labels:[r.label] });
+    });
+    out.forEach(function(sp){
+      var len = sp.end - sp.start;
+      sp.inStart = Math.max(sp.start, nowMs);                 // a session already under way starts from now
+      sp.fadeIn  = Math.min(45000, len*0.25);
+      sp.fadeOut = Math.min(60000, len*0.3);
+      var room = sp.end - sp.inStart;
+      if (sp.fadeIn + sp.fadeOut > room){ var k = room/(sp.fadeIn + sp.fadeOut); sp.fadeIn*=k; sp.fadeOut*=k; }
+    });
+    return out;
+  }
+  function spansFromCfg(nowMs){
+    var raw = [];
+    cfg.forEach(function(r, i){
+      if (!r.on) return;
+      var dur = r.dur*60000, start, label = 'Session ' + (i+1);
+      if (i===0 && r.now) start = nowMs;
+      else {
+        start = atTime(nowMs, r.time, 0);
+        if (start <= nowMs){ if (start + dur <= nowMs + 60000) start = atTime(nowMs, r.time, 1); }      // passed today → tomorrow (after midnight)
+        else { var prev = atTime(nowMs, r.time, -1); if (prev + dur > nowMs + 60000) start = prev; }    // e.g. 11:30 PM session still running at 12:10 AM
+      }
+      raw.push({ start:start, end:start + dur, label:label });
+    });
+    return makeSpans(raw, nowMs);
+  }
+  function gAt(w){
+    for (var i=0; i<sched.spans.length; i++){ var s = sched.spans[i];
+      if (w < s.inStart || w >= s.end) continue;
+      if (s.fadeIn > 0 && w < s.inStart + s.fadeIn) return FLOOR + (1-FLOOR)*(w - s.inStart)/s.fadeIn;
+      if (w < s.end - s.fadeOut) return 1;
+      return FLOOR + (1-FLOOR)*Math.max(0, (s.end - w)/s.fadeOut);
+    }
+    return FLOOR;
+  }
+  function activeSpan(w){ for (var i=0;i<sched.spans.length;i++){ var s=sched.spans[i]; if (w>=s.inStart && w<s.end) return s; } return null; }
+  function nextSpan(w){ for (var i=0;i<sched.spans.length;i++){ if (sched.spans[i].inStart > w) return sched.spans[i]; } return null; }
+
+  // (Re)write the whole remaining envelope onto the audio clock. Runs on start and whenever the audio
+  // clock and the wall clock disagree (iOS suspended the context, timers were throttled, etc.).
+  function applyEnvelope(){
+    if (!ctx || !sched.active) return;
+    var now = ctx.currentTime, w = Date.now(), R = 1.0, p = schedGain.gain;
+    hold(p, now);
+    p.linearRampToValueAtTime(gAt(w + R*1000), now + R);       // smooth glide to where we should be
+    var pts = [];
+    sched.spans.forEach(function(s){
+      if (s.fadeIn > 0) pts.push([s.inStart, FLOOR]);
+      pts.push([s.inStart + s.fadeIn, 1], [s.end - s.fadeOut, 1], [s.end, FLOOR]);
+    });
+    pts.sort(function(a,b){ return a[0]-b[0]; }).forEach(function(pt){
+      if (pt[0] > w + R*1000) p.linearRampToValueAtTime(pt[1], now + (pt[0] - w)/1000);
+    });
+    sched.anchorWall = w; sched.anchorCtx = now;
+  }
+  function reconcile(force){
+    if (!sched.active || !ctx) return;
+    if (Date.now() > sched.lastEnd + 1500){ finishSchedule(); return; }
+    if (ctx.state !== 'running') { tryResume(); return; }      // statechange → running re-applies
+    var drift = (ctx.currentTime - sched.anchorCtx) - (Date.now() - sched.anchorWall)/1000;
+    if (force || Math.abs(drift) > 1) applyEnvelope();
+  }
+
+  // Route the output through a MediaStream into an <audio> element: iOS treats that as ongoing media
+  // playback, which keeps running with the screen locked (plain Web Audio output is suspended).
+  function routeToSink(){
+    if (!sink || !ctx.createMediaStreamDestination) return;
+    try {
+      if (!streamDest) streamDest = ctx.createMediaStreamDestination();
+      schedGain.connect(streamDest);
+      sink.srcObject = streamDest.stream;
+      var done = function(){ if (!sched.active) return; try { schedGain.disconnect(ctx.destination); } catch(e){} sched.routed = true; };
+      var pr = sink.play();
+      if (pr && pr.then) pr.then(done).catch(function(){ try { schedGain.disconnect(streamDest); } catch(e){} sink.srcObject = null; });
+      else done();
+    } catch(e){}
+  }
+  function unroute(){
+    if (!ctx) return;
+    try { schedGain.connect(ctx.destination); } catch(e){}
+    if (streamDest) try { schedGain.disconnect(streamDest); } catch(e){}
+    if (sink){ try { sink.pause(); } catch(e){} sink.srcObject = null; }
+    sched.routed = false;
+  }
+
+  function startSchedule(spanFn){
+    if (!ensureCtx()) return;
+    if (ctx.state !== 'running') { var rp = ctx.resume(); if (rp && rp.catch) rp.catch(function(){}); }
+    var w = Date.now(), spans = (spanFn || spansFromCfg)(w);
+    if (!spans.length){ setSchedMsg('No upcoming sessions. Turn on at least one session.'); return; }
+    var wasPlaying = playing;
+    if (state.timer){ state.timer = 0; flash('Sleep timer turned off · the night schedule is in charge now'); }
+    stopTimer();
+    if (wasPlaying && spans[0].inStart <= w + 1000) spans[0].fadeIn = 0;   // already playing: no dip
+    if (!wasPlaying){ var t = ctx.currentTime; hold(schedGain.gain, t); schedGain.gain.setValueAtTime(FLOOR, t); }
+    if (!current) current = buildVoice(state.sound);
+    ramp(master.gain, volGain(state.vol), 1.5);
+    playing = true; sched.active = true; sched.spans = spans; sched.msg = '';
+    sched.lastEnd = spans[spans.length-1].end;
+    applyEnvelope(); routeToSink();
+    if (sched.tick) clearInterval(sched.tick);
+    sched.tick = setInterval(function(){ reconcile(false); if (sched.active) { renderSched(); setStatus(); } }, 1000);
+    render(); mediaSession(); wake();
+  }
+  // called from pause(): audio is already fading out via master
+  function endSchedule(fadeSecs){
+    sched.active = false;
+    if (sched.tick){ clearInterval(sched.tick); sched.tick = null; }
+    var t = ctx.currentTime; hold(schedGain.gain, t); schedGain.gain.setValueAtTime(1, t + fadeSecs + 0.3);
+    unroute(); sched.spans = [];
+  }
+  function finishSchedule(){ pause(0.5); setSchedMsg('Night schedule finished · good morning ☀️'); }
+  function setSchedMsg(m){ sched.msg = m; renderSched(); }
+  var noteEl = $('note'), noteT = null;
+  function flash(m){ noteEl.textContent = m; if (noteT) clearTimeout(noteT); noteT = setTimeout(function(){ noteEl.textContent=''; }, 9000); }
+
+  function clock(ms){ return new Date(ms).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+  function left(ms){ var s = Math.max(0, Math.round(ms/1000)), h = Math.floor(s/3600), m = Math.floor(s%3600/60);
+    if (h) return h + ' h' + (m ? ' ' + m + ' min' : '');
+    if (m >= 10) return m + ' min';
+    return m + ':' + ('0' + s%60).slice(-2); }
+  function mins(ms){ var m = Math.round(ms/60000); return m >= 60 && m%60===0 ? (m/60) + (m===60 ? ' hour' : ' hours') : m + ' min'; }
+
+  // ----- schedule UI -----
+  var rowsEl = $('schedRows'), goBtn = $('schedGo'), cancelBtn = $('schedCancel'), schedStatusEl = $('schedStatus');
+  cfg.forEach(function(r, i){
+    var d = document.createElement('div'); d.className = 'srow'; d.dataset.i = i;
+    d.innerHTML = '<div class="shead"><span>Session ' + (i+1) + '</span>' +
+      '<button type="button" class="sw" role="switch" aria-label="Session ' + (i+1) + ' on or off"></button></div>' +
+      (i===0 ? '<div class="seg"><button type="button" class="nowb">Start now</button><button type="button" class="atb">At a time</button></div>' : '') +
+      '<div class="sctl"><label><span class="cap">Starts</span><input type="time" aria-label="Session ' + (i+1) + ' start time">' +
+      (i===0 ? '<span class="nowtxt">Right away</span>' : '') + '</label>' +
+      '<label><span class="cap">Plays for</span><select aria-label="Session ' + (i+1) + ' duration">' +
+      DURS.map(function(m){ return '<option value="' + m + '">' + (m===60 ? '60 min' : m===90 ? '90 min' : m===120 ? '2 hours' : m + ' min') + '</option>'; }).join('') +
+      '</select></label></div>';
+    rowsEl.appendChild(d);
+    var sw = d.querySelector('.sw'), ti = d.querySelector('input'), se = d.querySelector('select');
+    sw.addEventListener('click', function(){ r.on = !r.on; saveSched(); renderSched(); });
+    ti.addEventListener('change', function(){ if (ti.value) { r.time = ti.value; if (i===0) r.now = false; } saveSched(); renderSched(); });
+    se.addEventListener('change', function(){ r.dur = Number(se.value); saveSched(); renderSched(); });
+    if (i===0){
+      d.querySelector('.nowb').addEventListener('click', function(){ r.now = true; r.on = true; saveSched(); renderSched(); });
+      d.querySelector('.atb').addEventListener('click', function(){ r.now = false; r.on = true; saveSched(); renderSched(); });
+    }
+  });
+  function renderSched(){
+    var w = Date.now(), act = sched.active ? activeSpan(w) : null;
+    rowsEl.disabled = sched.active;
+    Array.prototype.forEach.call(rowsEl.children, function(d){
+      var i = Number(d.dataset.i), r = cfg[i];
+      var sw = d.querySelector('.sw'), ti = d.querySelector('input'), se = d.querySelector('select');
+      sw.setAttribute('aria-checked', r.on ? 'true' : 'false'); sw.textContent = r.on ? 'On' : 'Off';
+      d.classList.toggle('off', !r.on);
+      d.classList.toggle('live', !!(act && act.labels.indexOf('Session ' + (i+1)) >= 0));
+      if (document.activeElement !== ti) ti.value = r.time;
+      se.value = String(r.dur);
+      if (i===0){
+        var nb = d.querySelector('.nowb'), ab = d.querySelector('.atb'), nt = d.querySelector('.nowtxt');
+        nb.classList.toggle('sel', r.now); nb.setAttribute('aria-pressed', r.now ? 'true' : 'false');
+        ab.classList.toggle('sel', !r.now); ab.setAttribute('aria-pressed', !r.now ? 'true' : 'false');
+        ti.hidden = r.now; nt.hidden = !r.now;
+      }
+    });
+    goBtn.hidden = sched.active; cancelBtn.hidden = !sched.active;
+    if (!sched.active){
+      if (sched.msg) { schedStatusEl.textContent = sched.msg; return; }
+      var prev = spansFromCfg(w);
+      schedStatusEl.textContent = prev.length
+        ? 'Tonight: ' + prev.map(function(s){ return (s.start <= w + 1000 ? 'now' : clock(s.start)) + ' for ' + mins(s.end - s.inStart); }).join(' · ')
+        : 'Turn on at least one session';
+      return;
+    }
+    var nx = nextSpan(w), lines = [];
+    if (act) lines.push('▶︎ ' + act.labels.join(' + ') + ' playing · ends ' + clock(act.end) + ' (' + left(act.end - w) + ' left)');
+    else lines.push('Quiet between sessions (app stays active, silent)');
+    if (nx) lines.push('Next: ' + clock(nx.start) + ' for ' + mins(nx.end - nx.start) + ' · in ' + left(nx.inStart - w));
+    else if (!act) lines.push('No more sessions tonight');
+    else lines.push('Last session tonight');
+    schedStatusEl.textContent = lines.join('\n');
+  }
+  goBtn.addEventListener('click', function(){ startSchedule(); });
+  cancelBtn.addEventListener('click', function(){ pause(); setSchedMsg('Night schedule cancelled'); });
+
+  if (/debug/.test(location.hash)) window.__ss = {
+    // test hook: list of {inSec, durSec}
+    startTest: function(list){ startSchedule(function(w){ return makeSpans(list.map(function(x, i){
+      return { start: w + x.inSec*1000, end: w + (x.inSec + x.durSec)*1000, label: 'Session ' + (i+1) }; }), w); }); },
+    level: function(){ if (!analyser) return 0; var a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
+      var s = 0; for (var i=0;i<a.length;i++) s += a[i]*a[i]; return Math.sqrt(s/a.length); },
+    info: function(){ return { active:sched.active, routed:sched.routed, playing:playing, timer:state.timer, ctx: ctx && ctx.state,
+      sinkPaused: sink.paused, status: statusEl.textContent, sched: schedStatusEl.textContent, note: noteEl.textContent }; },
+    preview: function(nowMs){ return spansFromCfg(nowMs).map(function(s){ return { start:new Date(s.start).toString(), mins:(s.end-s.start)/60000, labels:s.labels }; }); },
+    clickTimer: function(m){ document.querySelector('#timers [data-m="' + m + '"]').click(); }
+  };
+
   // ---------- lock-screen controls / keep screen awake ----------
   function mediaSession(){
     if (!('mediaSession' in navigator)) return;
     try {
       if (window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: NAMES[state.sound], artist:'Sleep Sounds' });
+      if (sched.active && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: NAMES[state.sound] + ' · Night schedule', artist:'Sleep Sounds' });
       navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
       navigator.mediaSession.setActionHandler('play', function(){ play(); });
-      navigator.mediaSession.setActionHandler('pause', function(){ pause(); });
+      navigator.mediaSession.setActionHandler('pause', function(){ var s=sched.active; pause(); if (s) setSchedMsg('Night schedule stopped'); });
+      try { navigator.mediaSession.setActionHandler('stop', function(){ var s=sched.active; pause(); if (s) setSchedMsg('Night schedule stopped'); }); } catch(e){}
     } catch(e){}
   }
   var wakeLock=null;
@@ -336,7 +614,10 @@
     navigator.wakeLock.request('screen').then(function(w){ wakeLock=w; w.addEventListener('release', function(){ wakeLock=null; }); }).catch(function(){}); } }
 
   // ---------- events ----------
-  playBtn.addEventListener('click', function(){ if (playing) pause(); else play(); });
+  playBtn.addEventListener('click', function(){
+    if (playing){ var s=sched.active; pause(); if (s) setSchedMsg('Night schedule stopped'); }
+    else play();
+  });
   $('sounds').addEventListener('click', function(e){
     var b=e.target.closest('button'); if (!b) return;
     selectSound(b.dataset.s);
@@ -344,7 +625,15 @@
   });
   $('timers').addEventListener('click', function(e){
     var b=e.target.closest('button'); if (!b) return;
-    state.timer = Number(b.dataset.m);
+    var m = Number(b.dataset.m);
+    if (sched.active){
+      if (!m) return;                       // "Off" while the schedule runs: nothing to change
+      pause(0.5); state.timer = m; play();  // the sleep timer wins: schedule cancelled, plain playback with timer
+      setSchedMsg('Schedule cancelled because the sleep timer was started');
+      flash('Night schedule cancelled · sleep timer started');
+      return;
+    }
+    state.timer = m;
     if (playing) startTimer(state.timer);
     render();
   });
@@ -353,9 +642,13 @@
   toneEl.addEventListener('input', function(){ state.tone=Number(toneEl.value); render();
     if (ctx) ramp(toneFilter.frequency, toneHz(state.tone), 0.25); save(); });
   // iOS can suspend/interrupt the context (calls, Siri, backgrounding): resume on return or next tap
-  function tryResume(){ if (ctx && playing && ctx.state !== 'running') { var p=ctx.resume(); if (p && p.catch) p.catch(function(){}); } }
-  document.addEventListener('visibilitychange', function(){ if (!document.hidden){ tryResume(); wake(); } });
-  window.addEventListener('pageshow', tryResume);
+  function tryResume(){
+    if (ctx && playing && ctx.state !== 'running') { var p=ctx.resume(); if (p && p.catch) p.catch(function(){}); }
+    if (sched.active && sched.routed && sink && sink.paused){ var q=sink.play(); if (q && q.catch) q.catch(function(){}); }
+  }
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden){ tryResume(); wake(); reconcile(true); } });
+  window.addEventListener('pageshow', function(){ tryResume(); reconcile(true); });
+  window.addEventListener('focus', function(){ reconcile(false); });
   document.addEventListener('touchend', tryResume, {passive:true});
 
   // Home-screen icon: render a PNG via canvas (iOS ignores SVG touch icons)
